@@ -1,0 +1,885 @@
+<!DocType HTML>
+<html>
+ <head>
+  <title>editMCLA</title>
+  <style type="text/css">
+  body {
+   background-color: black;
+   color: lime;
+   font-size: 16px;
+  }
+  .hidden {
+   display: none;
+  }
+  .loading_ellipsis::before {
+   content: "Loading";
+   display: inline-block;
+  }
+  .loading_ellipsis_1::after {
+   content: ".";
+   display: inline-block;
+  }
+  .loading_ellipsis_2::after {
+   content: "..";
+   display: inline-block;
+  }
+  .loading_ellipsis_3::after {
+   content: "...";
+   display: inline-block;
+  }
+  .loading_ellipsis_4::after {
+   content: "..";
+   display: inline-block;
+  }
+  #data_popout {
+   left: 50%;
+   margin-left: 0px;
+   margin-top: 0px;
+   position: fixed;
+   top: 50%;
+   z-index: 65535;
+  }
+  #data_popout tbody tr td {
+   background-color: rgb( 64, 64, 64 );
+   padding: 5pt;
+  }
+  #data_input {
+   background-color: rgb( 32, 32, 32 );
+   box-sizing: border-box;
+   color: silver;
+   font-family: "Courier New";
+   font-size: 10pt;
+   height: 55pt;
+   width: 420px;
+  }
+  .treeview, .treeview ul {
+   list-style-type: none;
+  }
+  .treeview {
+   margin: 0;
+   padding: 0;
+  }
+  .treeview .treeview-item, .treeview .treeview-node, .treeview .treeview-neutral {
+   cursor: pointer;
+   -webkit-user-select: none; /* Safari 3.1+ */
+   -moz-user-select: none; /* Firefox 2+ */
+   -ms-user-select: none; /* IE 10+ */
+   user-select: none;
+  }
+  .treeview .treeview-node::before {
+   content: "\229E";
+   color: #9300C5;
+   display: inline-block;
+   margin-right: 4px;
+   font-size: 16px;
+  }
+  .treeview .treeview-collapse::before {
+   content: "\229F";
+   color: #9300C5;
+   display: inline-block;
+   margin-right: 4px;
+   font-size: 16px;
+  }
+  .treeview ul {
+   display: none;
+  }
+  .treeview .treeview-expanded {
+   display: block;
+  }
+  .treeview .treeview-item::before {
+   content: "\2610";
+   color: #9300C5;
+   display: inline-block;
+   margin-right: 4px;
+   font-size: 18px;
+  }
+  .treeview .treeview-selected::before {
+   content: "\2611";
+   color: #9300C5;
+   display: inline-block;
+   margin-right: 4px;
+   font-size: 18px;
+  }
+  .treeview .treeview-neutral::before {
+   content: "\26CB";
+   color: #9300C5;
+   display: inline-block;
+   margin-right: 4px;
+   font-size: 16px;
+  }
+  </style>
+  <script type="text/javascript"> // Universal
+  function is_string_empty_or_null( str ) {
+   return( typeof( str ) === "undefined" || str === null || str == null || str == "" );
+  }
+  function flip_boolean( bool ) {
+   if( bool.toString().toLowerCase() == "true" ) {
+    return( false );
+   }
+   return( true );
+  }
+  function elem_hasClass( elem, className ) {
+   var elem_class = '';
+   try {
+    elem_class = elem.getAttribute( "class" );
+   } catch( ex ) {
+    elem_class = '';
+   }
+   return( ( ' ' + elem_class + ' ' ).indexOf( ' ' + className + ' ' ) >= 0 );
+  }
+  function elem_classSwap( elem, class_from, class_to ) {
+   var elem_class = '';
+   try {
+    elem_class = elem.getAttribute( "class" );
+   } catch( ex ) {
+    elem_class = '';
+   }
+   var classes = ( ' ' + elem_class + ' ' ).replace( ' ' + class_from + ' ', ' ' + class_to + ' ' );
+   elem.setAttribute( "class", classes.substr( 1, classes.length - 2 ) );
+  }
+  function array_toggle( array, toggle ) {
+   for( var i = 0; i < array.length; i++ ) {
+    if( array[ i ] == toggle ) {
+     array.splice( i, 1 );
+     return( array );
+    }
+   }
+   array.push( toggle );
+   return( array );
+  }
+  function array_sub( array, start, length ) {
+   return( array.slice( start, start + length ) );
+  }
+  function bytes2hex( bytes ) {
+   return( Array.from( bytes, function( byte ) {
+    return( ( '0' + ( byte & 0xFF ).toString( 16 ) ).slice( -2 ) );
+   } ).join( '' ).toUpperCase() );
+  }
+  function bytes2string( bytes ) {
+   return( hex2string( bytes2hex( bytes ) ) );
+  }
+  function hex2bytes( hex ) {
+   var bytes = new Array();
+   hex = hex.toUpperCase();
+   for( var i = 0; i < hex.length; i += 2 ) {
+    bytes.push( parseInt( hex.substr( i, 2 ), 16 ) );
+   }
+   return( bytes );
+  }
+  function hex2string( hex ) {
+   var string = "";
+   for( var i = 0; i < hex.length; i += 2 ) {
+    string += String.fromCharCode( parseInt( hex.substr( i, 2 ), 16 ) );
+   }
+   return( string );
+  }
+  function is_hex_string( hex ) {
+   return( hex.toUpperCase().replace( /[0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F]/g, '' ).length == 0 && ( hex.length.toString().match( /[0,2,4,6,8]$/g ) ? true : false ) && hex.length > 0 );
+  }
+  </script>
+  <script type="text/javascript"> // TreeView
+  var TreeData = new Array(); // TreeData[ "<tree><splitter><data-path>" ][ i ] : get an item's data, [ i = 0 ] : stores an int if the item/node is 0=unchecked/collapsed, 1=checked/expanded, 2=neutral
+  var TreeItem = new Array(); // TreeItem[ "<tree><splitter>" ] : get the treeview html element, TreeItem[ "<tree><splitter><data-path>" ] : get the treeview item/node html element
+  var splitter = ":\\"; // splitter : set example : tree:\path\to\item
+  function treeview_create( id ) {
+   var tree_path = id + splitter;
+   TreeItem[ tree_path ] = document.createElement( "ul" );
+   TreeItem[ tree_path ].setAttribute( "id", id );
+   TreeItem[ tree_path ].setAttribute( "class", "treeview" );
+  }
+  function treeview_clear( id ) {
+   var tree_path = id + splitter;
+   var data_keys = Object.keys( TreeData );
+   var item_keys = Object.keys( TreeItem );
+   for( var i = 0; i < data_keys.length; i++ ) {
+    var data_key = data_keys[ i ];
+    if( data_key.indexOf( tree_path ) == 0 ) delete TreeData[ data_key ];
+   }
+   for( var i = 0; i < item_keys.length; i++ ) {
+    var item_key = item_keys[ i ];
+    if( item_key.indexOf( tree_path ) == 0 && item_key != tree_path ) delete TreeItem[ item_key ];
+   }
+   delete TreeItem[ tree_path ];
+   var tree = document.getElementById( id );
+   while( tree.firstChild ) tree.removeChild( tree.firstChild );
+   var elem = document.createElement( "ul" );
+   elem.setAttribute( "id", id );
+   elem.setAttribute( "class", "treeview" );
+   tree.parentElement.replaceChild( elem, tree );
+  }
+  function treeview_beforeMouseDown( e, sender ) {
+   e.returnValue = false;
+   if( e.preventDefault ) {
+    e.preventDefault();
+   }
+   return( treeview_onMouseDown( sender, e.which ) );
+  }
+  function treeview_onMouseDown( sender, which ) {
+   var path = treeview_getItemPath( sender );
+   var can_edit = typeof( sender.getAttribute( "data-custom" ) ) == "string";
+   var is_item = elem_hasClass( sender, "treeview-item" );
+   var is_node = elem_hasClass( sender, "treeview-node" );
+   var is_neutral = elem_hasClass( sender, "treeview-neutral" );
+   var can_toggle = !is_neutral;
+   // left-click
+   if( which == 1 ) {
+    // if GUI/TreeView data handling is needed
+    if( can_toggle ) {
+     // send to TreeView array for toggle monitoring
+     TreeData[ path ][ 0 ] = TreeData[ path ][ 0 ] == 0 ? 1 : 0;
+     if( is_item ) {
+      // GUI handling
+      sender.classList.toggle( "treeview-selected" );
+     }
+     else if( is_node ) {
+      // GUI handling
+      treeview_getTreeNode( path ).classList.toggle( "treeview-expanded" );
+      sender.classList.toggle( "treeview-collapse" );
+     }
+    }
+   }
+   // if visible : send feedback to external event handler
+   if( TreeItem[ treeview_getItemTree( sender ) + splitter ].parentElement !== null ) return( treeview_afterMouseDown( sender, which, path, can_edit, can_toggle, is_item, is_node, is_neutral ) );
+   // else : return false
+   return( false );
+  }
+  function treeview_afterMouseDown( sender, which, path, can_edit, can_toggle, is_item, is_node, is_neutral ) {
+  var data = TreeData[ path ];
+   // custom handling {
+   if( which == 3 && can_edit ) {
+    sender.focus();
+    edit_custom_data( sender );
+   }
+   else if( which == 1 && can_edit && is_item && can_toggle ) {
+    var b = data_bytes[ data[ 1 ] ];
+    data_bytes[ data[ 1 ] ] = b == 0x00 ? 0x01 : 0x00;
+    treeview_setCustomData( path, bytes2hex( array_sub( data_bytes, data[ 1 ] , data[ 2 ] ) ) );
+    var log = bytes2hex( [ b ] ) + "->" + bytes2hex( array_sub( data_bytes, data[ 1 ], data[ 2 ] ) );
+    if( log.split( "->" )[ 0 ] != log.split( "->" )[ 1 ] ) console.log( "-> " + path + "\r\n:: " + log + "\r\n" );
+   }
+   // }
+   return( false );
+  }
+  function treeview_getItemTree( elem ) {
+   while( !elem_hasClass( elem, "treeview" ) ) {
+    elem = elem.parentElement;
+   }
+   return( elem.id );
+  }
+  function treeview_getItemPath( elem ) {
+   if( elem_hasClass( elem, "treeview" ) ) return( elem.id + splitter );
+   return( elem.getAttribute( "data-path" ) );
+  }
+  function treeview_getParentPath( elem ) {
+   if( elem_hasClass( elem, "treeview" ) ) return( elem.id + splitter );
+   var path = elem.getAttribute( "data-path" );
+   return( treeview_getItemTree( elem ) + splitter + path.substr( 0, path.lastIndexOf( "\\" ) ) );
+  }
+  function treeview_getTreeItems( id ) {
+   var a = new Array();
+   var tree_path = id + splitter;
+   var item_keys = Object.keys( TreeItem );
+   for( var i = 0; i < item_keys.length; i++ ) {
+    var item_key = item_keys[ i ];
+    if( item_key.indexOf( tree_path ) == 0 && item_key != tree_path ) {
+     var item = TreeItem[ item_key ];
+     if( elem_hasClass( item, "treeview-item" ) ) a.push( item );
+    }
+   }
+   return( a );
+  }
+  function treeview_getTreeNodes( id ) {
+   var a = new Array();
+   var tree_path = id + splitter;
+   var item_keys = Object.keys( TreeItem );
+   for( var i = 0; i < item_keys.length; i++ ) {
+    var item_key = item_keys[ i ];
+    if( item_key.indexOf( tree_path ) == 0 && item_key != tree_path ) {
+     var item = TreeItem[ item_key ];
+     if( elem_hasClass( item, "treeview-node" ) ) a.push( item );
+    }
+   }
+   return( a );
+  }
+  function treeview_getTreeItem( path ) {
+   return( TreeItem[ path ] );
+  }
+  function treeview_getTreeNode( path ) {
+   var elem = treeview_getTreeItem( path );
+   if( elem_hasClass( elem, "treeview" ) ) return( elem );
+   return( elem.parentElement.getElementsByTagName( "ul" )[ 0 ] );
+  }
+  function treeview_itemIsActive( path ) {
+   return( TreeData[ path ][ 0 ] == 1 );
+  }
+  function treeview_getCustomData( path ) {
+   return( treeview_getTreeItem( path ).getAttribute( "data-custom" ) );
+  }
+  function treeview_setCustomData( path, data ) {
+   data = data || "YourDataHere";
+   treeview_getTreeItem( path ).setAttribute( "data-custom", data );
+  }
+  function treeview_setTreeItemActive( path, active ) {
+   var data = TreeData[ path ][ 0 ];
+   if( data < 0 || data > 1 ) return( false );
+   active = ( active === true || active === false ) ? active : true;
+   var is_active = data == 1;
+   if( is_active != active ) {
+    var click_event = document.createEvent( "MouseEvents" );
+    click_event.initEvent( "mousedown", true, true );
+    treeview_getTreeItem( path ).dispatchEvent( click_event );
+   }
+   return( true );
+  }
+  function treeview_add( append_to, name, text, can_edit, data, is_node ) {
+   is_node = is_node || false;
+   can_edit = can_edit || 0;
+   if( can_edit < 0 ) can_edit = 0;
+   if( can_edit > 2 ) can_edit = 2;
+   if( is_node ) can_edit = can_edit == 2 ? 1 : can_edit;
+   append_to = append_to || "root" + splitter;
+   text = text || "YourTextHere";
+   name = name || text || "YourNameHere";
+   data = data || new Array();
+   data.unshift( can_edit == 2 ? 2 : 0 );
+   var parent = treeview_getTreeItem( append_to );
+   var path = append_to + ( append_to.split( splitter )[ 1 ].length <= 0 ? "" : "\\" ) + name;
+   // custom : MCLA {
+   var match = false;
+   match = match || path.match( /root:\\Vehicles\\([0-9][0-9])\\Hydraulics\/Air Bags\\Hydraulics/ ) ? true : false;
+   match = match || path.match( /root:\\Vehicles\\([0-9][0-9])\\Hydraulics\/Air Bags\\Air Bags/ ) ? true : false;
+   if( match ) {
+    if( data_bytes[ data[ 1 ] ] != 0x00 && data_bytes[ data[ 1 ] ] != 0x01 ) {
+     data[ 0 ] = 2;
+     can_edit = 2;
+     match = false;
+    }
+   }
+   // }
+   TreeData[ path ] = data;
+   var elem = document.createElement( "span" );
+   var wrap = document.createElement( "li" );
+   elem.setAttribute( "class", is_node ? "treeview-node" : ( can_edit == 2 ? "treeview-neutral" : "treeview-item" ) );
+   elem.setAttribute( "oncontextmenu", "return( false );" );
+   elem.innerHTML = text;
+   elem.setAttribute( "data-path", path );
+   if( can_edit >= 1 ) elem.setAttribute( "data-custom", "" );
+   elem.onmousedown = function( e ) {
+    return( treeview_beforeMouseDown( e || window.event, this ) );
+   };
+   wrap.appendChild( elem );
+   if( elem_hasClass( parent, "treeview-item" ) ) {
+    elem_classSwap( parent, "treeview-item", "treeview-node" );
+    elem_classSwap( parent, "treeview-selected", "treeview-collapse" );
+    var node = document.createElement( "ul" );
+    if( elem_hasClass( parent, "treeview-collapse" ) ) node.setAttribute( "class", "treeview-expanded" );
+    if( TreeData[ append_to ][ 0 ] == 2 ) TreeData[ append_to ][ 0 ] = elem_hasClass( node, "treeview-expanded" ) ? 1 : 0;
+    node.appendChild( wrap );
+    parent.parentElement.appendChild( node );
+   }
+   else {
+    if( is_node ) wrap.appendChild( document.createElement( "ul" ) );
+    treeview_getTreeNode( append_to ).appendChild( wrap );
+   }
+   TreeItem[ path ] = elem;
+   // custom : MCLA {
+   if( match ) treeview_setTreeItemActive( path, bytes2hex( array_sub( data_bytes, data[ 1 ], 0x01 ) ) == "01" );
+   // }
+  }
+  </script>
+  <script type="text/javascript"> // TextArea
+  var data_reset = false;
+  var data_element;
+  var popout_moved;
+  function fix_popout_location() {
+   var data_popout = document.getElementById( "data_popout" );
+   data_popout.style.marginLeft = "-" + ( data_popout.offsetWidth / 2 ) + "px";
+   data_popout.style.marginTop = "-" + ( data_popout.offsetHeight / 2 ) + "px";
+  }
+  function edit_custom_data( elem ) {
+   var data_popout = document.getElementById( "data_popout" );
+   var data_input = document.getElementById( "data_input" );
+   data_element = elem;
+   var path = treeview_getItemPath( data_element );
+   var data = TreeData[ path ];
+   // custom : for MCLA {
+   data_element.setAttribute( "data-custom", bytes2hex( array_sub( data_bytes, data[ 1 ] , data[ 2 ] ) ) );
+   if( data[ 3 ] == "fc:0" ) {
+    // float code
+   }
+   else if( data[ 3 ] == "hc:0" ) {
+    // hex code
+   }
+   else if( data[ 3 ] == "pc:0" ) {
+    // paint code 0 (standard?)
+   }
+   else if( data[ 3 ] == "pc:1" ) {
+    // paint code 1 (?????????)
+   }
+   else if( data[ 3 ] == "sc:0" ) {
+    // string code 0 (000000/standard)
+   }
+   else if( data[ 3 ] == "sc:1" ) {
+    // string code 1 (00CDCD/tag)
+   }
+   else if( data[ 3 ] == "sc:2" ) {
+    // string code 2 (CDCDCD/text)
+   }
+   // }
+   data_input.value = data_element.getAttribute( "data-custom" );
+   data_input.onkeydown = function( e ) {
+    e = e || window.event;
+    if( e.keyCode == 13 ) {
+     change_custom_data();
+    }
+   };
+   data_input.onmousedown = function() {
+    popout_moved = false;
+    this.onmousemove = function() {
+     popout_moved = true;
+     fix_popout_location();
+    };
+   };
+   data_input.onmouseup = function() {
+    this.onmousemove = null;
+    if( popout_moved ) {
+     fix_popout_location();
+    }
+    popout_moved = false;
+   };
+   data_popout.classList.toggle( "hidden" );
+   fix_popout_location();
+   data_input.focus();
+  }
+  function change_custom_data() {
+   var data_popout = document.getElementById( "data_popout" );
+   var data_input = document.getElementById( "data_input" );
+   var value = data_input.value;
+   data_input.onkeydown = null;
+   data_input.onmousedown = null;
+   data_input.onmouseup = null;
+   data_input.onmousemove = null;
+   data_input.value = "";
+   if( !data_reset ) {
+    // custom : MCLA {
+    if( is_hex_string( value ) ) {
+     value = value.toUpperCase();
+     var bytes = hex2bytes( value );
+     var data = TreeData[ treeview_getItemPath( data_element ) ];
+     if( bytes.length == data[ 2 ] ) {
+      var log = bytes2hex( array_sub( data_bytes, data[ 1 ], data[ 2 ] ) ) + "->" + bytes2hex( bytes );
+      for( var i = 0; i < bytes.length; i++ ) data_bytes[ data[ 1 ] + i ] = bytes[ i ];
+      data_element.setAttribute( "data-custom", value ); // delete all 'custom : MCLA' here, except this line for this function to work properly
+      if( log.split( "->" )[ 0 ] != log.split( "->" )[ 1 ] ) console.log( "-> " + treeview_getItemPath( data_element ) + "\r\n:: " + log + "\r\n" );
+     }
+    }
+    // }
+   }
+   data_element = null;
+   data_popout.classList.toggle( "hidden" );
+   if( data_reset ) data_reset = false;
+  }
+  </script>
+  <script type="text/javascript"> // File
+  var data_bytes;
+  function file_open( elem ) {
+   file_close( elem );
+   document.getElementById( "file_name" ).innerHTML = "Loading...";
+   document.getElementById( "file_open" ).click();
+  }
+  function file_save( elem ) {
+   var save = ( function() {
+    var a = document.createElement( "a" );
+    document.body.appendChild( a );
+    a.setAttribute( "style", "display: none;" );
+    return( function( data, name ) {
+     var blob = new Blob( data, { type : "octet/stream" } );
+     var uri = window.URL.createObjectURL( blob );
+     a.download = name;
+     a.href = uri;
+     a.click();
+     window.URL.revokeObjectURL( uri );
+     a.parentNode.removeChild( a );
+    } );
+   }() );
+   save( [ data_bytes ], "mc4.sav" );
+  }
+  function file_close( elem ) {
+   console.clear();
+   data_bytes = null;
+   if( data_element ) {
+    data_reset = true;
+    change_custom_data();
+   }
+   var file_input = document.getElementById( "file_open" );
+   file_input.type = "text";
+   file_input.value = null;
+   file_input.type = "file";
+   treeview_clear( "root" ); // custom ( "root" = main treeview id )
+   document.title = "editMCLA"; // custom title
+   document.getElementById( "file_name" ).innerHTML = "(mc4.sav|*.sav|*.*|*)";
+   var file_opened_functions = document.getElementById( "file_opened_functions" );
+   if( !elem_hasClass( file_opened_functions, "hidden" ) ) file_opened_functions.classList.toggle( "hidden" );
+  }
+  function file_change( elem ) {
+   var reader = new FileReader();
+   reader.onload = function() {
+    file_output( new Uint8Array( this.result ) );
+    // functionality {
+    var fileName = document.getElementById( "file_open" ).value.replace( /.*[\/\\]/, "" );
+    document.title = "editMCLA - " + fileName; // custom title
+    document.getElementById( "file_name" ).innerHTML = fileName;
+    var file_opened_functions = document.getElementById( "file_opened_functions" );
+    if( elem_hasClass( file_opened_functions, "hidden" ) ) file_opened_functions.classList.toggle( "hidden" );
+    // }
+   };
+   reader.readAsArrayBuffer( elem.files[ 0 ] );
+  }
+  // custom : for MCLA {
+  var ref = new function() {
+   this.Chunk = new function() {
+    this.Race                         = 0x00000420;
+    this.Vehicle                      = 0x00001FF0;
+    this.Size                         = 0x00001FF0;
+   };
+   this.Offset = new function() {
+    this.Race                         = 0x000422CA;
+    this.Vehicle                      = 0x00004785;
+   };
+   this.OffsetStart = new function() {
+    this.Money                        = 0x00050FC4;
+    this.Reputation                   = 0x00050FCC;
+    this.Vehicle                      = 0x00004785;
+    this.VehicleName_Text             = 0x00006754;
+    // Dimensions
+    this.RideHeight_Front             = 0x00004FC1;
+    this.RideHeight_Rear              = 0x00004FC2;
+    this.RideHeight_Both              = this.RideHeight_Front;
+    this.TireWidth_Front              = 0x00004FC3;
+    this.TireWidth_Rear               = 0x00004FC4;
+    this.TireWidth_Both               = this.TireWidth_Front;
+    this.RimsSize_Front               = 0x00004FC5;
+    this.RimsSize_Rear                = 0x00004FC6;
+    this.RimsSize_Both                = this.RimsSize_Front;
+    this.TireProfile_Front            = 0x00004FC7;
+    this.TireProfile_Rear             = 0x00004FC8;
+    this.TireProfile_Both             = this.TireProfile_Front;
+    this.RimType                      = 0x00004FCB;
+    this.TireType                     = 0x00004FCC;
+    this.BrakeType                    = 0x00004FCD;
+    // License Plate
+    this.LicensePlate_Text            = 0x00004FCE;
+    // Handling
+    this.TireGrip_Front               = 0x000047C4;
+    this.TireGrip_Rear                = 0x000047C5;
+    this.Torque                       = 0x000047C6;
+    // Performance
+    this.ExhaustSystem                = 0x000047A3;
+    this.Headers                      = 0x000047A4;
+    this.ColdAirIntake                = 0x000047A5;
+    this.ForcedInduction              = 0x000047A6;
+    this.EngineUpgrade                = 0x000047A7;
+    this.Electronics                  = 0x000047A8;
+    this.Nitrous                      = 0x000047A9;
+    this.Clutch                       = 0x000047AA;
+    this.GearKits                     = 0x000047AB;
+    this.ShocksAndSprings             = 0x000047AC;
+    this.Swaybars                     = 0x000047AD;
+    this.Brakes                       = 0x000047AE;
+    this.Tires                        = 0x000047AF;
+    // Miscelaneous
+    this.Underglow                    = 0x000067C7;
+    this.InteriorNeon                 = 0x000067D7;
+    this.GaugeColourA                 = 0x000067E7;
+    this.GaugeColourB                 = 0x000067F7;
+    this.RimSpokeA                    = 0x00006807;
+    this.RimSpokeB                    = 0x00006817;
+    this.RimLip                       = 0x00006827;
+    this.RimsTrimA                    = 0x00006837;
+    this.BodyTrimA                    = 0x00006847;
+    this.InteriorTrim                 = 0x00006857;
+    this.InteriorTrim_StickShift      = 0x00006867;
+    this.BodyTrimB                    = 0x00006877;
+    this.BrakeCapilers                = 0x00006887;
+    this.HeadlightGlassColour         = 0x00006890;
+    this.TaillightGlassColour         = 0x000068A0;
+    this.MirrorLightColour            = 0x000068B0;
+    this.TopTaillightGlassCoverColour = 0x000068C0;
+    this.GlassTintColour              = 0x000068D0;
+    this.NeonInsideSpokeA             = 0x000068E0;
+    this.RimsTrimB                    = 0x000068F0;
+   };
+   this.OffsetLength = new function() {
+    this.Money                        = 0x00000004;
+    this.Reputation                   = 0x00000004;
+    this.Vehicle                      = 0x00001FF0; // Chunk.Size
+    this.VehicleName_Text             = 0x00000021;
+    // Dimensions
+    this.RideHeight_Front             = 0x00000001;
+    this.RideHeight_Rear              = 0x00000001;
+    this.RideHeight_Both              = 0x00000002;
+    this.TireWidth_Front              = 0x00000001;
+    this.TireWidth_Rear               = 0x00000001;
+    this.TireWidth_Both               = 0x00000002;
+    this.RimsSize_Front               = 0x00000001;
+    this.RimsSize_Rear                = 0x00000001;
+    this.RimsSize_Both                = 0x00000002;
+    this.TireProfile_Front            = 0x00000001;
+    this.TireProfile_Rear             = 0x00000001;
+    this.TireProfile_Both             = 0x00000002;
+    this.RimType                      = 0x00000001;
+    this.TireType                     = 0x00000001;
+    this.BrakeType                    = 0x00000001;
+    // License Plate
+    this.LicensePlate_Text            = 0x00000007;
+    // Handling
+    this.TireGrip_Front               = 0x00000001;
+    this.TireGrip_Rear                = 0x00000001;
+    this.Torque                       = 0x00000001;
+    // Performance
+    this.ExhaustSystem                = 0x00000001;
+    this.Headers                      = 0x00000001;
+    this.ColdAirIntake                = 0x00000001;
+    this.ForcedInduction              = 0x00000001;
+    this.EngineUpgrade                = 0x00000001;
+    this.Electronics                  = 0x00000001;
+    this.Nitrous                      = 0x00000001;
+    this.Clutch                       = 0x00000001;
+    this.GearKits                     = 0x00000001;
+    this.ShocksAndSprings             = 0x00000001;
+    this.Swaybars                     = 0x00000001;
+    this.Brakes                       = 0x00000001;
+    this.Tires                        = 0x00000001;
+    // Miscellaneous
+    this.Underglow                    = 0x00000010;
+    this.InteriorNeon                 = 0x00000010;
+    this.GaugeColourA                 = 0x00000010;
+    this.GaugeColourB                 = 0x00000010;
+    this.RimSpokeA                    = 0x00000010;
+    this.RimSpokeB                    = 0x00000010;
+    this.RimLip                       = 0x00000010;
+    this.RimsTrimA                    = 0x00000010;
+    this.BodyTrimA                    = 0x00000010;
+    this.InteriorTrim                 = 0x00000010;
+    this.InteriorTrim_StickShift      = 0x00000010;
+    this.BodyTrimB                    = 0x00000010;
+    this.BrakeCapilers                = 0x00000009;
+    this.HeadlightGlassColour         = 0x00000010;
+    this.TaillightGlassColour         = 0x00000010;
+    this.MirrorLightColour            = 0x00000010;
+    this.TopTaillightGlassCoverColour = 0x00000010;
+    this.GlassTintColour              = 0x00000010;
+    this.NeonInsideSpokeA             = 0x00000010;
+    this.RimsTrimB                    = 0x00000010;
+   };
+  };
+  // }
+  function file_output( bytes ) {
+   data_bytes = bytes;
+   // custom : for MCLA {
+   window.setTimeout( function() {
+    treeview_create( "root" );
+    treeview_add( "root:\\", null, "Statistics", 0, [], true );
+    treeview_add( "root:\\", null, "Races",      0, [], true );
+    treeview_add( "root:\\", null, "Vehicles",   0, [], true );
+    for( var i = 0; i < 30; i++ ) {
+     var s = i + 1;
+     if( s < 10 ) s = "0" + s;
+     s = s.toString();
+     var offsetStart = ref.Offset.Vehicle;
+     var offsetLength = ref.Chunk.Vehicle;
+     var b = array_sub( data_bytes, (offsetStart+(ref.Chunk.Vehicle*i))+0x00001FCF, 0x00000021 );
+     if( array_sub( b, 0, 1 ) != [ 0x00 ] ) {
+      if( b.indexOf( 0xCD ) > -1 ) b = array_sub( b, 0, b.indexOf( 0xCD ) );
+      if( b.indexOf( 0x00 ) > -1 ) b = array_sub( b, 0, b.indexOf( 0x00 ) );
+      var text = bytes2string( b );
+      var bt = array_sub( data_bytes, (offsetStart+(ref.Chunk.Vehicle*i))+0x00001FAF, 0x00000020 );
+      if( bt.indexOf( 0xCD ) > -1 ) bt = array_sub( bt, 0, bt.indexOf( 0xCD ) );
+      if( bt.indexOf( 0x00 ) > -1 ) bt = array_sub( bt, 0, bt.indexOf( 0x00 ) );
+      var tag = bytes2string( bt );
+      // display {
+      // treeview_add( append_to, name, text, can_edit, data, is_node );
+      // Vehicles
+      treeview_add( "root:\\Vehicles",                                    s, text,                                                                     1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00001FCF,0x00000021,"hc:0"],             true );
+      // Vehicles.%2
+      treeview_add( "root:\\Vehicles\\" + s,                          "Tag", tag,                                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00001FAF,0x00000020,"hc:0"],            false );
+      // Vehicles.%s.Mods
+      treeview_add( "root:\\Vehicles\\" + s,                           null, "Mods",                                                                   0, [],                                                                             true );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "000", "[ Vehicle; ÿddd, speed-line, weight-line, ... ]",                        1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00+(0x00*  0),ref.Chunk.Vehicle,"hc:0"], true );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "001", "Underglow",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  1),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "002", "Neon in car",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  2),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "003", "Gauge Colour A (Speedometer)",                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  3),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "004", "Gauge Colour B (Radio)",                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  4),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "005", "Rim: Spoke A",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  5),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "006", "Rim: Spoke B",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  6),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "007", "Rim: Lip",                                                               2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  7),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "008", "Trim inside rims",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  8),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "009", "Trim around car",                                                        2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*  9),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "010", "Steering wheel, part of headlights, some interior, gauge & sparco seat", 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 10),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "011", "Stick shift & things around it",                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 11),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "012", "Trim around car",                                                        2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 12),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "013", "Brake Capilars",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 13),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "014", "Headlight Glass Colour",                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 14),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "015", "Taillight Glass Colour",                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 15),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "016", "Inside headlight glass cover & mirror lights",                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 16),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "017", "Top taillight glass cover",                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 17),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "018", "Glass tint colour",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 18),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "019", "[?] Spoke A inside neon & baby blue neon",                               2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 19),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "020", "Trim inside rims",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 20),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "021", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 21),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "022", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 22),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "023", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 23),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "024", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 24),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "025", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 25),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "026", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 26),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "027", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 27),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "028", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 28),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "029", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 29),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "030", "Neon flash",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 30),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "031", "Main Brakes",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 31),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "032", "Main Brakes",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 32),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "033", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 33),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "034", "Rear Turn Signal",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 34),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "035", "Rear Turn Signal",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 35),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "036", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 36),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "037", "Front Turn Signal",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 37),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "038", "Front Turn Signal",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 38),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "039", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 39),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "040", "Main Headlight",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 40),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "041", "Main Headlight",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 41),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "042", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 42),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "043", "High Beam",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 43),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "044", "High Beam",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 44),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "045", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 45),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "046", "High Beam",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 46),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "047", "High Beam",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 47),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "048", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 48),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "049", "Reverse Light",                                                          2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 49),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "050", "Reverse Light",                                                          2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 50),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "051", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 51),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "052", "Reverse Light",                                                          2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 52),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "053", "Reverse Light",                                                          2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 53),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "054", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 54),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "055", "Fog Light",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 55),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "056", "Fog Light",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 56),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "057", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 57),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "058", "Back Light Cover",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 58),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "059", "Outline Back Light",                                                     2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 59),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "060", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 60),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "061", "Euro Light",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 61),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "062", "Euro Light",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 62),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "063", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 63),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "064", "Euro Light",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 64),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "065", "Euro Light",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 65),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "066", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 66),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "067", "Third Brake Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 67),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "068", "Third Brake Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 68),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "069", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 69),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "070", "Third Brake Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 70),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "071", "Third Brake Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 71),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "072", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 72),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "073", "Blue Police Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 73),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "074", "Blue Police Light",                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 74),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "075", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 75),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "076", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 76),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "077", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 77),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "078", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 78),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "079", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 79),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "080", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 80),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "081", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 81),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "082", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 82),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "083", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 83),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "084", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 84),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "085", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 85),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "086", "Police Light",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 86),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "087", "(put flash code here)",                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 87),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "088", "Interior A",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 88),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "089", "Interior B",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 89),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "090", "Interior C",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 90),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "091", "Interior D",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 91),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "092", "Interior E",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 92),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "093", "Side panels around the bottom of the car",                               2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 93),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "094", "All the buttons, trim around windows, & mirror",                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 94),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "095", "?",                                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 95),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "096", "?",                                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 96),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "097", "?",                                                                      2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 97),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "098", "Main Body",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 98),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "099", "Main Body",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10* 99),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "100", "Main Body Paint Type",                                                   2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*100),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "101", "Doors",                                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*101),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "102", "Doors",                                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*102),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "103", "Doors Paint Type",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*103),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "104", "Hood",                                                                   2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*104),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "105", "Hood",                                                                   2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*105),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "106", "Hood Paint Type",                                                        2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*106),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "107", "Front Bumper",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*107),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "108", "Front Bumper",                                                           2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*108),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "109", "Front Bumper Paint Type",                                                2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*109),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "110", "Rear Bumper",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*110),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "111", "Rear Bumper",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*111),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "112", "Rear Bumper Paint Type",                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*112),0x10,"hc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "113", "Side Skirts",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*113),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "114", "Side Skirts",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*114),0x10,"pc:0"],             false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods",               "115", "Side Skirts Paint Type",                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x42+(0x10*115),0x10,"hc:0"],             false );
+      // Vehicles.%s.Mods.000
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Dimensions",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000083C,0x0000000D,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Handling (ÿddd)",                                                        2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000003F,0x00000003,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Performance (speed-line)",                                               2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000001B,0x00000010,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Performance (weight-line)",                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000000B,0x00000010,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Hydraulics/Air Bags",                                                    2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002B,0x00000013,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Mods\\000",           null, "Body Parts",                                                             2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000862,0x0000003E,"hc:0"],            false );
+      // Vehicles.%s.Performance_Shop
+      treeview_add( "root:\\Vehicles\\" + s,                           null, "Performance Shop",                                                       0, [],                                                                             true );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Exhaust System",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000001E,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Headers",                                                                2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000001F,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Cold Air Intake",                                                        2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000020,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Forced Induction",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000021,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Engine Upgrade",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000022,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Electronics",                                                            2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000023,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Nitrous",                                                                2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000024,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Clutch",                                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000025,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Gear Kits",                                                              2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000026,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Shocks/Springs",                                                         2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000027,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Swaybars",                                                               2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000028,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Brakes",                                                                 2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00000029,0x00000001,"hc:0"],            false );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Performance Shop",    null, "Tires",                                                                  2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002A,0x00000001,"hc:0"],            false );
+      // Vehicles.%s.Hydraulics/Air_Bags
+      treeview_add( "root:\\Vehicles\\" + s,                           null, "Hydraulics/Air Bags",                                                    0, [],                                                                             true );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Hydraulics",                                                             1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002C,0x00000001,"hc:0"],            false );// var test = treeview_getTreeItem( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags\\Hydraulics" ).children[ 0 ]; treeview_setTreeNodeActive( "root", treeview_getNodePath( test.parentElement ), bytes2hex( array_sub( data_bytes, parseInt( test.getAttribute( "data-offsetStart" ) ), parseInt( test.getAttribute( "data-offsetLength" ) ) ) ) == "01" );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Air Bags",                                                               1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002B,0x00000001,"hc:0"],            false );// var test = treeview_getTreeItem( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags\\Air Bags" ).children[ 0 ];   treeview_setTreeNodeActive( "root", treeview_getNodePath( test.parentElement ), bytes2hex( array_sub( data_bytes, parseInt( test.getAttribute( "data-offsetStart" ) ), parseInt( test.getAttribute( "data-offsetLength" ) ) ) ) == "01" );
+      treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Lowering Pattern",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00004763,0x00000001,"hc:0"],            false );
+      // }
+     }
+    }
+    // custom GUI {
+    var tree = "root"; // custom ( to output as gui )
+    // expand all...
+    /*
+    var nodes = treeview_getTreeNodes( tree );
+    for( var i = 0; i < nodes.length; i++ ) {
+     var node = nodes[ i ];
+     treeview_setTreeItemActive( treeview_getItemPath( node ) );
+    }
+    */
+    // display tree...
+    var elem_old = document.getElementById( tree );
+    var elem_new = TreeItem[ tree + splitter ];
+    elem_new.setAttribute( "style", "position: absolute; top: " + document.getElementById( "hdr" ).offsetHeight + "px;" );
+    elem_old.parentElement.replaceChild( elem_new, elem_old );
+    // }
+   }, 1 );
+   // }
+  }
+  </script>
+ </head>
+ <body>
+  <table id="data_popout" class="hidden"><tbody><tr><td><textarea id="data_input" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea></td></tr></tbody></table>
+  <div id="hdr" style="position: absolute; top: 0; left: 0; width: 100%;">
+   <center><h1>[ SaveGame Editor : Midnight Club LA ]</h1></center>
+   <div style="position: absolute; top: 4pt; left: 4pt;"><a href="javascript://" onclick="file_open( this );">open</a><span class="hidden" id="file_opened_functions"><span> / </span><a href="javascript://" onclick="file_save( this );">save</a><span> / </span><a href="javascript://" onclick="file_close( this );">close</a></span><br/><br/><span id="file_name">(mc4.sav|*.sav|*.*|*)</span></div>
+   <p style="position: absolute; top: 0; right: 8pt;">Left-Click &#x229E;/&#x229F; to Open/Close the tree branches,<br/>Right-Click &#x26CB;/&#x2611;/&#x2610; to Edit inner contents (edit mod),<br/>or Left-Click &#x2611;/&#x2610; to toggle the option On/Off.</p>
+   <input class="hidden" id="file_open" type="file" onchange="file_change( this );" style="position: absolute; top: 0; right: 0;"/>
+  </div>
+  <ul class="treeview" id="root"></ul>
+ </body>
+</html>
