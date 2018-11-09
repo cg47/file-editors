@@ -725,6 +725,11 @@
    data_bytes = bytes;
    // CUSTOM {
    window.setTimeout( function() {
+    if( bytes2string( array_sub( data_bytes, 0, 3 ) ) == "CON" ) {
+     window.alert( "This application does not support opening CON files,\nas we cannot re-hash and re-sign them for you.\nPlease extract the inner " + settings[ "file" ] + " file from this file,\nand try again with that one. Sorry for the minor inconvenience.\n(Don't forget to replace the file again, then re-hash and re-sign)" );
+     file_close( null );
+     return;
+    }
     // create tree
     treeview_create( settings[ "tree" ] ); // CUSTOM
     // set base nodes
