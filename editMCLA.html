@@ -110,7 +110,9 @@
   </style>
   <script type="text/javascript"> // Universal
   function flip_boolean( bool ) { // ( null || false ) ? true : false
-   if( bool === true ) return( false );
+   if( bool === true ) {
+    return( false );
+   }
    return( true );
   }
   function is_empty_or_null( object ) { // ( null || invalid object || length == 0 ) ? true : false
@@ -142,7 +144,7 @@
    var classes = ( " " + elem_class + " " ).replace( " " + class_from + " ", " " + class_to + " " );
    elem.setAttribute( "class", classes.substr( 1, classes.length - 2 ) );
   }
-  function array_sub( array, start, length ) { // array_sub( [ 0x0D, 0x0A, 0xDE, 0xAD, 0xBE, 0xEF ], 2, 2 ) = [ 0xDE, 0xAD ]
+  function array_sub( array, start, length ) { // array_sub( [ 0x0D, 0x0A, 0xDE, 0xAD, 0xBE, 0xEF ], 0x2, 2 ) = [ 0xDE, 0xAD ]
    return( array.slice( start, start + length ) );
   }
   function array_toggle( array, toggle, method ) { // array_toggle( [ "BEEF" ], "DEAD", "unshift" ) = [ "DEAD", "BEEF" ]
@@ -170,12 +172,19 @@
    } ).join( "" ).toUpperCase() );
   }
   function bytes2int( bytes ) { // bytes2int( [ 0xDE, 0xAD ] ) = 0xDEAD
-   return( bytes[ 1 ] | bytes[ 0 ] << 8 );
+   bytes = ( typeof( bytes ) !== "undefined" && bytes instanceof Array ) ? bytes : [ bytes ];
+   var int = 0;
+   var mod = 0;
+   for( var i = 0; i < bytes.length; i++ ) {
+    int |= bytes[ bytes.length - ( i + 1 ) ] << mod;
+    mod += 8;
+   }
+   return( int );
   }
   function bytes2string( bytes ) { // bytes2string( [ 0x0D, 0x0A ] ) = "\r\n"
    var string = "";
    for( var i = 0; i < bytes.length; i++ ) {
-    string += String.fromCharCode( parseInt( bytes[ i ], 2 ) );
+    string += String.fromCharCode( parseInt( bytes[ i ] ) );
    }
    return( string );
   }
@@ -193,6 +202,26 @@
     string += String.fromCharCode( parseInt( hex.substr( i, 2 ), 16 ) );
    }
    return( string );
+  }
+  function dataBlocks2bytes( start, bytes, stop_at_byte ) { // dataBlocks2bytes( 0, [ 0x02, 0xDE, 0xAD, 0xFF, 0x02, 0xBE, 0xEF ], 0xFF ) = [ [ 0xDE, 0xAD ], 0x03 ]
+   start = start || 0;
+   stop_at_byte = stop_at_byte || -1;
+   var a = new Array();
+   for(;;) {
+    var block_length = bytes[ start ] * 8;
+    for( var i = 1; i <= block_length; i++ ) {
+     var b = bytes[ start + i ];
+     if( b == stop_at_byte ) {
+      break;
+     }
+     a.push( b );
+    }
+    start += block_length + 1;
+    if( block_length != 0x7F * 8 ) {
+     break;
+    }
+   }
+   return( [ a, start - 1 ] );
   }
   </script>
   <script type="text/javascript"> // TreeView
@@ -263,7 +292,7 @@
   }
   function treeview_afterMouseDown( sender, which, path, can_edit, can_toggle, is_item, is_node, is_neutral ) {
   var data = TreeData[ path ];
-   // custom handling {
+   // CUSTOM {
    if( which == 3 && can_edit ) {
     sender.focus();
     edit_custom_data( sender );
@@ -362,7 +391,7 @@
    data.unshift( can_edit == 2 ? 2 : 0 );
    var parent = treeview_getTreeItem( append_to );
    var path = append_to + ( append_to.split( splitter )[ 1 ].length <= 0 ? "" : "\\" ) + name;
-   // custom : MCLA {
+   // CUSTOM {
    var match = false;
    match = match || path.match( /root:\\Vehicles\\([0-9][0-9])\\Hydraulics\/Air Bags\\Hydraulics/ ) ? true : false;
    match = match || path.match( /root:\\Vehicles\\([0-9][0-9])\\Hydraulics\/Air Bags\\Air Bags/ ) ? true : false;
@@ -400,7 +429,7 @@
     treeview_getTreeNode( append_to ).appendChild( wrap );
    }
    TreeItem[ path ] = elem;
-   // custom : MCLA {
+   // CUSTOM {
    if( match ) treeview_setTreeItemActive( path, bytes2hex( array_sub( data_bytes, data[ 1 ], 0x01 ) ) == "01" );
    // }
   }
@@ -420,7 +449,7 @@
    data_element = elem;
    var path = treeview_getItemPath( data_element );
    var data = TreeData[ path ];
-   // custom : for MCLA {
+   // CUSTOM {
    data_element.setAttribute( "data-custom", bytes2hex( array_sub( data_bytes, data[ 1 ] , data[ 2 ] ) ) );
    if( data[ 3 ] == "fc:0" ) {
     // float code
@@ -479,7 +508,7 @@
    data_input.onmousemove = null;
    data_input.value = "";
    if( !data_reset ) {
-    // custom : MCLA {
+    // CUSTOM {
     if( is_hex_string( value ) ) {
      value = value.toUpperCase();
      var bytes = hex2bytes( value );
@@ -487,7 +516,7 @@
      if( bytes.length == data[ 2 ] ) {
       var log = bytes2hex( array_sub( data_bytes, data[ 1 ], data[ 2 ] ) ) + "->" + bytes2hex( bytes );
       for( var i = 0; i < bytes.length; i++ ) data_bytes[ data[ 1 ] + i ] = bytes[ i ];
-      data_element.setAttribute( "data-custom", value ); // delete all 'custom : MCLA' here, except this line for this function to work properly
+      data_element.setAttribute( "data-custom", value ); // delete all 'CUSTOM' here, except this line for this function to work properly
       if( log.split( "->" )[ 0 ] != log.split( "->" )[ 1 ] ) console.log( "-> " + treeview_getItemPath( data_element ) + "\r\n:: " + log + "\r\n" );
      }
     }
@@ -520,7 +549,7 @@
      a.parentNode.removeChild( a );
     } );
    }() );
-   save( [ data_bytes ], "mc4.sav" );
+   save( [ data_bytes ], settings[ "file" ] );
   }
   function file_close( elem ) {
    console.clear();
@@ -533,9 +562,9 @@
    file_input.type = "text";
    file_input.value = null;
    file_input.type = "file";
-   treeview_clear( "root" ); // custom ( "root" = main treeview id )
-   document.title = "editMCLA"; // custom title
-   document.getElementById( "file_name" ).innerHTML = "(mc4.sav|*.sav|*.*|*)";
+   treeview_clear( settings[ "tree" ] ); // CUSTOM
+   document.title = settings[ "title" ];
+   document.getElementById( "file_name" ).innerHTML = settings[ "filter" ];
    var file_opened_functions = document.getElementById( "file_opened_functions" );
    if( !elem_hasClass( file_opened_functions, "hidden" ) ) file_opened_functions.classList.toggle( "hidden" );
   }
@@ -545,7 +574,7 @@
     file_output( new Uint8Array( this.result ) );
     // functionality {
     var fileName = document.getElementById( "file_open" ).value.replace( /.*[\/\\]/, "" );
-    document.title = "editMCLA - " + fileName; // custom title
+    document.title = settings[ "title" ] + " - " + fileName; // custom title
     document.getElementById( "file_name" ).innerHTML = fileName;
     var file_opened_functions = document.getElementById( "file_opened_functions" );
     if( elem_hasClass( file_opened_functions, "hidden" ) ) file_opened_functions.classList.toggle( "hidden" );
@@ -553,7 +582,7 @@
    };
    reader.readAsArrayBuffer( elem.files[ 0 ] );
   }
-  // custom : for MCLA {
+  // CUSTOM {
   var ref = new function() {
    this.Chunk = new function() {
     this.Race                         = 0x00000420;
@@ -694,9 +723,11 @@
   // }
   function file_output( bytes ) {
    data_bytes = bytes;
-   // custom : for MCLA {
+   // CUSTOM {
    window.setTimeout( function() {
-    treeview_create( "root" );
+    // create tree
+    treeview_create( settings[ "tree" ] ); // CUSTOM
+    // set base nodes
     treeview_add( "root:\\", null, "Statistics", 0, [], true );
     treeview_add( "root:\\", null, "Races",      0, [], true );
     treeview_add( "root:\\", null, "Vehicles",   0, [], true );
@@ -715,8 +746,6 @@
       if( bt.indexOf( 0xCD ) > -1 ) bt = array_sub( bt, 0, bt.indexOf( 0xCD ) );
       if( bt.indexOf( 0x00 ) > -1 ) bt = array_sub( bt, 0, bt.indexOf( 0x00 ) );
       var tag = bytes2string( bt );
-      // display {
-      // treeview_add( append_to, name, text, can_edit, data, is_node );
       // Vehicles
       treeview_add( "root:\\Vehicles",                                    s, text,                                                                     1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00001FCF,0x00000021,"hc:0"],             true );
       // Vehicles.%2
@@ -866,22 +895,20 @@
       treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Hydraulics",                                                             1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002C,0x00000001,"hc:0"],            false );// var test = treeview_getTreeItem( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags\\Hydraulics" ).children[ 0 ]; treeview_setTreeNodeActive( "root", treeview_getNodePath( test.parentElement ), bytes2hex( array_sub( data_bytes, parseInt( test.getAttribute( "data-offsetStart" ) ), parseInt( test.getAttribute( "data-offsetLength" ) ) ) ) == "01" );
       treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Air Bags",                                                               1, [(offsetStart+(ref.Chunk.Vehicle*i))+0x0000002B,0x00000001,"hc:0"],            false );// var test = treeview_getTreeItem( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags\\Air Bags" ).children[ 0 ];   treeview_setTreeNodeActive( "root", treeview_getNodePath( test.parentElement ), bytes2hex( array_sub( data_bytes, parseInt( test.getAttribute( "data-offsetStart" ) ), parseInt( test.getAttribute( "data-offsetLength" ) ) ) ) == "01" );
       treeview_add( "root:\\Vehicles\\" + s + "\\Hydraulics/Air Bags", null, "Lowering Pattern",                                                       2, [(offsetStart+(ref.Chunk.Vehicle*i))+0x00004763,0x00000001,"hc:0"],            false );
-      // }
      }
     }
-    // custom GUI {
-    var tree = "root"; // custom ( to output as gui )
+    // CUSTOM : GUI {
     // expand all...
     /*
-    var nodes = treeview_getTreeNodes( tree );
+    var nodes = treeview_getTreeNodes( settings[ "tree" ] );
     for( var i = 0; i < nodes.length; i++ ) {
      var node = nodes[ i ];
      treeview_setTreeItemActive( treeview_getItemPath( node ) );
     }
     */
     // display tree...
-    var elem_old = document.getElementById( tree );
-    var elem_new = TreeItem[ tree + splitter ];
+    var elem_old = document.getElementById( settings[ "tree" ] );
+    var elem_new = TreeItem[ settings[ "tree" ] + splitter ];
     elem_new.setAttribute( "style", "position: absolute; top: " + document.getElementById( "hdr" ).offsetHeight + "px;" );
     elem_old.parentElement.replaceChild( elem_new, elem_old );
     // }
@@ -899,5 +926,12 @@
    <input class="hidden" id="file_open" type="file" onchange="file_change( this );" style="position: absolute; top: 0; right: 0;"/>
   </div>
   <ul class="treeview" id="root"></ul>
+  <script type="text/javascript">
+  var settings = new Array();
+  settings[ "title" ] = document.title;
+  settings[ "filter" ] = document.getElementById( "file_name" ).innerText;
+  settings[ "file" ] = settings[ "filter" ].split( "(" )[ 1 ].split( "|" )[ 0 ];
+  settings[ "tree" ] = "root"; // CUSTOM
+  </script>
  </body>
 </html>
