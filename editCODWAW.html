@@ -597,6 +597,7 @@
     data_block = dataBlocks2bytes( next_index, data_bytes, avoid_byte );
     last_index = data_block[ 1 ];
     data_block = data_block[ 0 ];
+    data_block.pop(); // [error-prone] delete the extra byte
     index = -1;
     for( var i = 0; i < data_block.length; ) {
      while( data_block[ i ] >= 0x00 && data_block[ i ] <= 0x40 ) {
@@ -618,10 +619,11 @@
     while( data_bytes[ next_index ] != 0x7F ) {
      next_index++;
     }
-    // Scripts
+    // Scripts [error-prone]
     data_block = dataBlocks2bytes( next_index, data_bytes, avoid_byte );
     last_index = data_block[ 1 ];
     data_block = data_block[ 0 ];
+    data_block.pop(); // [error-prone] delete the extra byte
     index = -1;
     for( var i = 0; i < data_block.length; ) {
      while( data_block[ i ] >= 0x00 && data_block[ i ] <= 0x40 ) {
