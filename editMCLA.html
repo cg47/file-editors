@@ -207,18 +207,22 @@
    start = start || 0;
    stop_at_byte = stop_at_byte || -1;
    var a = new Array();
+   dance:
    for(;;) {
+    if( bytes[ start ] == stop_at_byte ) {
+     break dance;
+    }
     var block_length = bytes[ start ] * 8;
     for( var i = 1; i <= block_length; i++ ) {
      var b = bytes[ start + i ];
      if( b == stop_at_byte ) {
-      break;
+      break dance;
      }
      a.push( b );
     }
     start += block_length + 1;
     if( block_length != 0x7F * 8 ) {
-     break;
+     break dance;
     }
    }
    return( [ a, start - 1 ] );
@@ -574,7 +578,7 @@
     file_output( new Uint8Array( this.result ) );
     // functionality {
     var fileName = document.getElementById( "file_open" ).value.replace( /.*[\/\\]/, "" );
-    document.title = settings[ "title" ] + " - " + fileName; // custom title
+    document.title = settings[ "title" ] + " - " + fileName;
     document.getElementById( "file_name" ).innerHTML = fileName;
     var file_opened_functions = document.getElementById( "file_opened_functions" );
     if( elem_hasClass( file_opened_functions, "hidden" ) ) file_opened_functions.classList.toggle( "hidden" );
